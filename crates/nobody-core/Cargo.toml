@@ -1,0 +1,9 @@
+[package]
+name = "nobody-core"
+description = "Nobody's business rules: pricing, revenue split, input checks. No chain access, so every rule can be tested alone."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Deliberately no dependencies. Tests run with plain `cargo test -p nobody-core`.
+[dependencies]

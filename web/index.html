@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nobody</title>
+<meta name="description" content="A security review of your NEAR smart contract, from an AI company with no server, no staff and no keys.">
+<style>
+:root {
+  color-scheme: light dark;
+  --paper: #f3efe6;
+  --sheet: #fbf8f1;
+  --ink: #1b1a17;
+  --soft: #5f5b51;
+  --rule: #d6d0c2;
+  --stamp: #b5301a;
+  --pass: #24643f;
+  --mark: #e9e2d2;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #151412;
+    --sheet: #1d1b18;
+    --ink: #ece7db;
+    --soft: #a29c8e;
+    --rule: #39352e;
+    --stamp: #e8664e;
+    --pass: #66bb8a;
+    --mark: #2a2723;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 18px/1.55 var(--serif);
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+a { color: inherit; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* The door */
+.door {
+  border-bottom: 1px solid var(--rule);
+  font: 13px/1.4 var(--mono);
+}
+.door .wrap { display: flex; flex-wrap: wrap; gap: 4px 20px; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+.brand { font-weight: 700; letter-spacing: .14em; }
+.sign { color: var(--soft); }
+.sign b { color: var(--ink); font-weight: 600; }
+.lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rule); margin-right: 7px; vertical-align: 1px; }
+.lamp.on { background: var(--pass); }
+.lamp.off { background: var(--stamp); }
+
+/* Hero */
+.hero { position: relative; }
+h1 { font-size: clamp(44px, 11vw, 76px); line-height: 1; letter-spacing: -.02em; margin: 56px 0 18px; font-weight: 600; }
+.lead { font-size: 21px; color: var(--soft); margin: 0 0 34px; max-width: 34em; }
+.hero .seal { position: absolute; right: 0; top: 4px; }
+
+/* Form */
+form { margin: 0; }
+label { display: block; font: 13px/1.4 var(--mono); color: var(--soft); margin: 18px 0 6px; }
+input[type=text], select {
+  width: 100%;
+  padding: 13px 14px;
+  font: 16px/1.3 var(--mono);
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; align-items: center; }
+button {
+  font: 600 15px/1 var(--mono);
+  padding: 14px 18px;
+  border-radius: 2px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+button.quiet { background: transparent; color: var(--ink); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.note { font: 13px/1.5 var(--mono); color: var(--soft); }
+.terms { display: flex; gap: 10px; align-items: flex-start; font: 14px/1.5 var(--mono); color: var(--soft); margin-top: 18px; }
+.terms input { margin-top: 3px; }
+.problem { color: var(--stamp); font: 14px/1.5 var(--mono); margin: 14px 0 0; min-height: 1.2em; }
+
+/* Sheets */
+section { margin-top: 60px; }
+h2 { font-size: 30px; line-height: 1.15; margin: 0 0 14px; font-weight: 600; letter-spacing: -.01em; }
+h3 { font: 600 13px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--soft); margin: 30px 0 10px; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); padding: 26px; margin-top: 34px; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li { display: grid; grid-template-columns: 58px 1fr; gap: 12px; padding: 11px 0; border-top: 1px solid var(--rule); }
+.rows li:first-child { border-top: 0; }
+.tag { font: 700 12px/1.9 var(--mono); letter-spacing: .06em; }
+.tag.ok { color: var(--pass); }
+.tag.no { color: var(--stamp); }
+.tag.hint { color: var(--soft); }
+.rows b { font-weight: 600; display: block; }
+.rows span.why { color: var(--soft); font-size: 16px; }
+
+/* Payment */
+.box { font: 15px/1.5 var(--mono); background: var(--mark); padding: 12px 14px; word-break: break-all; margin: 8px 0 4px; }
+.steps { list-style: none; margin: 18px 0 0; padding: 0; font: 15px/1.5 var(--mono); }
+.steps li { padding: 5px 0 5px 26px; position: relative; color: var(--soft); }
+.steps li::before { content: ""; position: absolute; left: 3px; top: 12px; width: 10px; height: 10px; border: 1px solid var(--soft); border-radius: 50%; }
+.steps li.done { color: var(--ink); }
+.steps li.done::before { background: var(--pass); border-color: var(--pass); }
+.steps li.now { color: var(--ink); font-weight: 600; }
+.steps li.now::before { border-color: var(--stamp); background: var(--stamp); animation: pulse 1.4s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .steps li.now::before { animation: none; } }
+
+/* Report */
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.tally { display: flex; gap: 26px; font: 600 15px/1.2 var(--mono); }
+.tally b { display: block; font: 600 54px/1 var(--serif); letter-spacing: -.02em; }
+.tally .high b { color: var(--stamp); }
+.tally span { color: var(--soft); }
+.seal {
+  font: 700 12px/1.3 var(--mono);
+  letter-spacing: .12em;
+  color: var(--stamp);
+  border: 2px solid var(--stamp);
+  border-radius: 3px;
+  padding: 7px 10px;
+  transform: rotate(-4deg);
+  text-align: center;
+  flex: none;
+}
+.verdict { font-size: 22px; line-height: 1.35; margin: 18px 0 0; }
+.fine { font: 12px/1.6 var(--mono); color: var(--soft); margin-top: 26px; word-break: break-word; }
+
+/* Books */
+.figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-top: 22px; }
+.figures div { background: var(--sheet); padding: 15px 16px; }
+.figures b { display: block; font: 600 24px/1.2 var(--mono); }
+.figures span { font: 12px/1.4 var(--mono); color: var(--soft); }
+.scroll { overflow-x: auto; margin-top: 18px; }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font: 13px/1.5 var(--mono); }
+th { text-align: left; color: var(--soft); font-weight: 500; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+td { padding: 7px 12px 7px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.num { text-align: right; white-space: nowrap; }
+td.when { white-space: nowrap; color: var(--soft); }
+td.what { white-space: nowrap; }
+
+/* How */
+.how { counter-reset: step; list-style: none; margin: 18px 0 0; padding: 0; }
+.how li { counter-increment: step; padding: 11px 0 11px 44px; position: relative; border-top: 1px solid var(--rule); }
+.how li::before { content: counter(step); position: absolute; left: 0; top: 11px; font: 600 20px/1.4 var(--mono); color: var(--stamp); }
+.who { margin-top: 26px; }
+.who p { margin: 6px 0; }
+.who b { font-weight: 600; }
+
+footer { margin: 70px 0 44px; padding-top: 18px; border-top: 1px solid var(--rule); font: 13px/1.6 var(--mono); color: var(--soft); }
+
+@media (max-width: 680px) {
+  .hero .seal { display: none; }
+}
+@media (max-width: 520px) {
+  body { font-size: 17px; }
+  .lead { font-size: 19px; }
+  .sheet { padding: 18px; }
+  .tally { gap: 16px; }
+  .tally b { font-size: 42px; }
+  .rows li { grid-template-columns: 50px 1fr; }
+  .figures { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="door">
+  <div class="wrap">
+    <span class="brand">NOBODY</span>
+    <span class="sign" id="sign"><span class="lamp" id="lamp"></span><span id="sign-text">Checking the door</span></span>
+  </div>
+</div>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="seal" aria-hidden="true">NO SERVER<br>NO STAFF<br>NO KEYS</div>
+    <h1>Nobody reviews your contract.</h1>
+    <p class="lead">A security review of your NEAR smart contract, checked against NEAR's own audit checklist, from an AI company with no server, no staff and no keys. Your payment is what wakes it.</p>
+  </div>
+
+  <form id="form" autocomplete="off" novalidate>
+    <label for="repo">Your contract's public GitHub repo</label>
+    <input type="text" id="repo" placeholder="github.com/you/your-contract" spellcheck="false" required>
+    <div class="actions">
+      <button type="button" class="quiet" id="free">Free quick check</button>
+      <button type="submit" id="buy">Full review</button>
+    </div>
+    <p class="problem" id="problem" role="alert"></p>
+  </form>
+
+  <div class="sheet" id="free-out" hidden>
+    <h2>Quick check</h2>
+    <ul class="rows" id="free-rows"></ul>
+    <p class="note">This ran in your browser, for free. The full review reads every Rust file, runs NEAR's audit checklist against each contract method, and has a private AI judge every candidate inside a secure enclave, then look for what the rules cannot see.</p>
+  </div>
+
+  <div class="sheet" id="pay" hidden>
+    <h2>Pay from any chain</h2>
+    <div id="pay-real" hidden>
+      <label for="token">Pay with</label>
+      <select id="token"></select>
+      <label for="refund">Your address on that chain, for refunds</label>
+      <input type="text" id="refund" spellcheck="false">
+    </div>
+    <p class="note" id="pay-local" hidden>Local demo: no money moves. This simulates the payment 1Click would deliver.</p>
+    <p class="note" id="pay-testnet" hidden>This company runs on NEAR testnet, where NEAR Intents does not exist, so it is paid in test USDC from a NEAR account. Run <code>npm run demo:testnet</code> from the repo: it pays, waits for the report and prints a link that opens it on this page.</p>
+    <label class="terms"><input type="checkbox" id="agree">
+      <span>I agree to the <a href="#terms">terms</a>. This is an automated check. If the work fails, the money comes back.</span></label>
+    <div class="actions"><button type="button" id="pay-go">Get payment address</button></div>
+    <p class="problem" id="pay-problem" role="alert"></p>
+    <div id="deposit" hidden>
+      <label>Send exactly</label>
+      <div class="box" id="deposit-amount"></div>
+      <label>To this address</label>
+      <div class="box" id="deposit-address"></div>
+      <div id="deposit-memo-wrap" hidden><label>With this memo</label><div class="box" id="deposit-memo"></div></div>
+      <p class="note">Keep this page open. Nothing else is needed from you.</p>
+    </div>
+  </div>
+
+  <div class="sheet" id="track" hidden>
+    <h2>Your order</h2>
+    <ol class="steps" id="steps" aria-live="polite"></ol>
+    <p class="problem" id="track-problem" role="alert"></p>
+  </div>
+
+  <div class="sheet" id="report" hidden></div>
+
+  <section id="books">
+    <h2>The books</h2>
+    <p>Everything below is read straight from the contract. Sales made by the team are marked and never counted as customers.</p>
+    <div class="figures" id="figures"></div>
+    <p class="note" id="inference"></p>
+    <div class="scroll"><table>
+      <thead><tr><th>When</th><th>What</th><th style="text-align:right">Amount</th><th>Detail</th></tr></thead>
+      <tbody id="ledger"></tbody>
+    </table></div>
+    <p class="note" id="ledger-empty" hidden>Nothing yet. Nobody has been paid.</p>
+  </section>
+
+  <section id="how">
+    <h2>Try to find the server</h2>
+    <p>There isn't one. Most "autonomous" companies die when their founder stops paying a hosting bill. This one has nothing to pay when idle, so it can wait a year for its next customer.</p>
+    <ol class="how">
+      <li>You pay from any chain. NEAR Intents delivers USDC into the contract.</li>
+      <li>That delivery runs the contract. It checks the limits a human set, then asks for the work.</li>
+      <li>In a secure enclave, pinned code reads your repo, runs NEAR's audit checklist and has a private model judge each finding.</li>
+      <li>The report is sealed to a key in your browser, so only you can read it.</li>
+      <li>The contract settles the sale and shares the money by fixed rules. If the work failed, you are refunded.</li>
+      <li>It buys its own inference. NEAR it does not need for compute is staked with NEAR AI, whose yield pays for the model. The enclave sends that purchase with a key that can do nothing else.</li>
+    </ol>
+    <div class="who">
+      <p><b>Who runs it?</b> Nobody.</p>
+      <p><b>Who can take the money?</b> Nobody. The owner can pause it or change its limits. There is no withdraw function.</p>
+      <p><b>Who pays for the AI?</b> The company. It stakes spare NEAR with NEAR AI, and the yield buys its credits. The NEAR stays the company's.</p>
+      <p><b>What does the AI decide?</b> It writes the review, and proposes a price that the contract keeps inside a human range. It cannot move money.</p>
+      <p><b>What does it rely on?</b> NEAR, NEAR Intents, OutLayer, NEAR AI Cloud and GitHub. None of them are ours, and we run nothing ourselves.</p>
+    </div>
+    <p class="note" id="proof"></p>
+  </section>
+
+  <section id="terms">
+    <h2>Terms</h2>
+    <p class="note">This is an automated review by an independent service. It is not a full audit, it can miss problems, and you stay responsible for your code. It reads only the public repo you give it, and sends it to NEAR AI Cloud for private inference. Reports are sealed to a key held in your browser, so keep your report link safe: nobody can recover a lost one. If the work fails you are refunded automatically. Refunds to a wallet on another chain arrive as a balance you own inside NEAR Intents. Do not submit anything you are not allowed to share.</p>
+  </section>
+
+  <footer>Built at NEAR HACKATHON. Humans set the limits. <a href="#how">How it works</a></footer>
+</main>
+
+<script src="vendor/nacl-fast.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

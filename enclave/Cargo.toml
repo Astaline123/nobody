@@ -1,0 +1,31 @@
+[package]
+name = "nobody-enclave"
+description = "The work Nobody does when someone pays. Runs inside an OutLayer TEE, for one run, then stops."
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Built for wasm32-wasip2 with its own profile, so it stays out of the contract workspace.
+[workspace]
+
+[[bin]]
+name = "nobody-enclave"
+path = "src/main.rs"
+
+[features]
+# The real worker. Its storage call does not exist under plain wasmtime, so local runs leave
+# this off and hand the sealed report back in the output instead.
+outlayer = ["dep:outlayer"]
+
+[dependencies]
+nobody-core = { path = "../crates/nobody-core" }
+nobody-review = { path = "../crates/nobody-review" }
+serde_json = "1"
+wasi = "0.13"
+outlayer = { version = "0.2.1", optional = true, features = ["signing-keys"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1

@@ -1,0 +1,12 @@
+{
+  "capabilities": {
+    "network": [
+      { "host": "cloud-api.near.ai", "timeout_secs": 100 },
+      "codeload.github.com",
+      "raw.githubusercontent.com"
+    ]
+  },
+  "author_secrets": { "owner": "__SECRETS_OWNER__", "profile": "production" },
+  "callers": { "contract": { "only": ["__CONTRACT__"] } },
+  "signing_keys": [{ "path": "keeper", "type": "ed25519", "bind": "project", "caller": "predecessor" }]
+}

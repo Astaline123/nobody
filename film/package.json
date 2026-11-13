@@ -1,0 +1,11 @@
+{
+  "name": "nobody-film",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Tools for the explainer video only. The product itself uses no packages.",
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "kokoro-js": "1.2.1"
+  }
+}

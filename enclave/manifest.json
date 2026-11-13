@@ -1,0 +1,13 @@
+{
+  "capabilities": {
+    "network": [
+      { "host": "cloud-api.near.ai", "timeout_secs": 100 },
+      "codeload.github.com",
+      "raw.githubusercontent.com",
+      "cdn.syndication.twimg.com"
+    ]
+  },
+  "author_secrets": { "owner": "owner.near", "profile": "production" },
+  "callers": { "contract": { "only": ["hirenobody.near"] } }
+}
+

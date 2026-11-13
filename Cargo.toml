@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["crates/nobody-core", "crates/nobody-review", "contract"]
+# The enclave builds for wasm32-wasip2 with its own profile, so it is its own workspace.
+exclude = ["enclave"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Contract builds: small wasm, and arithmetic overflow aborts instead of wrapping.
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nobody explained</title>
+<!--
+  The pictures for film/explainer.mjs. Every animation is placed on the timeline by a line number,
+  optionally a word in that line, and an offset in seconds:
+
+    data-a="pop@5:common/0.4"        pop in when line 5 says "common", over 0.4s
+    data-a="up@2-0.1/0.5; dim@3/0.5" two animations, each name@when/duration[/count]
+    data-a="stamp@1e-0.3/0.45"       0.3s before line 1 ends
+    data-arc='[{"at":"9:coin","dur":0.8,"to":[-750,370],"via":[-380,-60]}]'   a curved move
+
+  The film is rendered frame by frame through window.__seek(ms), so it is the same on every run.
+-->
+<style>
+:root {
+  --paper: #f3efe6; --card: #fbf9f4; --ink: #1b1a17; --soft: #5f5b51; --rule: #d6d0c2;
+  --stamp: #b5301a; --pass: #24643f; --gold: #e9b949; --gold-ink: #7a5810;
+  --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); color: var(--ink); font-family: var(--serif); }
+.scene { position: absolute; inset: 0; opacity: 0; }
+svg.art { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; }
+.chapter { position: absolute; left: 112px; top: 76px; font: 700 24px/1 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--stamp); opacity: 0; }
+.chapter::after { content: ""; display: block; width: 60px; height: 4px; margin-top: 14px; background: var(--stamp); }
+#mark { position: absolute; right: 112px; top: 76px; font: 700 22px/1 var(--mono); letter-spacing: .26em; color: var(--soft); }
+#caption { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); width: max-content; max-width: 1560px; padding: 14px 36px 17px; border-radius: 18px; background: rgba(251,249,244,.96); box-shadow: 0 2px 0 rgba(27,26,23,.07), 0 12px 32px rgba(27,26,23,.07); font: 600 44px/1.3 var(--sans); text-align: center; text-wrap: balance; color: var(--ink); }
+#caption:empty { display: none; }
+.c { position: absolute; width: 1200px; margin-left: -600px; text-align: center; }
+.a { transform-box: fill-box; transform-origin: center; }
+svg text { font-family: var(--serif); fill: var(--ink); }
+.lab { font-size: 50px; }
+.lab-s { font-size: 42px; }
+.note { font-family: var(--mono); font-size: 26px; fill: var(--soft); letter-spacing: .08em; }
+.st { font-family: var(--mono); font-weight: 700; font-size: 80px; letter-spacing: .1em; fill: var(--stamp); }
+.tk { font-family: var(--sans); font-weight: 700; font-size: 26px; fill: #fff; }
+.zz { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 68px; fill: var(--soft); opacity: 0; }
+.big { font: 600 210px/1 var(--serif); letter-spacing: -.02em; }
+.sub { font: italic 400 52px/1.25 var(--serif); color: var(--soft); }
+.small { font: 400 26px/1.4 var(--mono); color: var(--soft); letter-spacing: .04em; }
+.num { font: 700 100px/1 var(--serif); }
+.kicker { font: 400 28px/1 var(--mono); color: var(--soft); letter-spacing: .08em; text-transform: uppercase; }
+.pill { display: inline-block; padding: 14px 30px; border: 4px solid var(--ink); border-radius: 44px; background: var(--card); font: 600 36px/1 var(--mono); }
+.shot { position: absolute; }
+.card { position: absolute; background: var(--card); border: 6px solid var(--ink); border-radius: 24px; padding: 26px 46px 14px; box-shadow: 0 14px 0 rgba(27,26,23,.06); }
+.card-h { display: flex; align-items: center; justify-content: space-between; font: 600 50px/1.1 var(--serif); margin-bottom: 8px; }
+.card-sub { font: 400 24px/1.4 var(--mono); color: var(--soft); margin-bottom: 12px; }
+.row { display: flex; align-items: center; justify-content: space-between; min-height: 112px; border-top: 3px solid var(--rule); font: 400 42px/1.1 var(--serif); }
+.row b { font: 700 40px/1 var(--mono); }
+.stop { width: 82px; height: 82px; border-radius: 50%; background: var(--stamp); border: 5px solid var(--ink); display: grid; place-items: center; font: 700 19px/1 var(--mono); color: #fff; font-style: normal; box-shadow: 0 5px 0 #7d1f10; }
+.slot { width: 180px; height: 74px; border: 5px dashed var(--stamp); border-radius: 16px; }
+.lrow { display: flex; justify-content: space-between; align-items: baseline; padding: 15px 0; border-top: 3px solid var(--rule); font: 400 34px/1.1 var(--mono); }
+.lrow b { font-weight: 700; }
+.lrow .in { color: var(--pass); }
+.tagp { font: 700 22px/1 var(--mono); letter-spacing: .14em; color: var(--stamp); border: 3px solid var(--stamp); border-radius: 6px; padding: 8px 12px; font-style: normal; }
+.hstamp { position: absolute; border: 8px solid var(--stamp); border-radius: 12px; background: rgba(243,239,230,.86); color: var(--stamp); font: 700 44px/1 var(--mono); letter-spacing: .1em; padding: 16px 24px; white-space: nowrap; }
+
+@keyframes sceneIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sceneOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes dim { from { opacity: 1 } to { opacity: .28 } }
+@keyframes up { from { opacity: 0; transform: translateY(36px) } to { opacity: 1; transform: translateY(0px) } }
+@keyframes down { from { opacity: 0; transform: translateY(-36px) } to { opacity: 1; transform: translateY(0px) } }
+@keyframes inL { from { opacity: 0; transform: translateX(-70px) } to { opacity: 1; transform: translateX(0px) } }
+@keyframes inR { from { opacity: 0; transform: translateX(70px) } to { opacity: 1; transform: translateX(0px) } }
+@keyframes pop { 0% { opacity: 0; transform: scale(.3) } 55% { opacity: 1; transform: scale(1.1) } 78% { transform: scale(.96) } 100% { opacity: 1; transform: scale(1) } }
+@keyframes stamp { 0% { opacity: 0; transform: rotate(var(--r, -8deg)) scale(2.6) } 50% { opacity: 1; transform: rotate(var(--r, -8deg)) scale(.92) } 72% { transform: rotate(var(--r, -8deg)) scale(1.04) } 100% { opacity: 1; transform: rotate(var(--r, -8deg)) scale(1) } }
+@keyframes draw { from { stroke-dashoffset: 1 } to { stroke-dashoffset: 0 } }
+@keyframes ring { from { opacity: 0; transform: scale(1.18) } to { opacity: 1; transform: scale(1) } }
+@keyframes wiggle { 0%, 100% { transform: rotate(-9deg) } 50% { transform: rotate(9deg) } }
+@keyframes shake { 0%, 100% { transform: translateX(0px) rotate(0deg) } 20% { transform: translateX(-10px) rotate(-3deg) } 40% { transform: translateX(10px) rotate(3deg) } 60% { transform: translateX(-7px) rotate(-2deg) } 80% { transform: translateX(7px) rotate(2deg) } }
+@keyframes bob { 0%, 100% { transform: translateY(0px) } 50% { transform: translateY(-12px) } }
+@keyframes swing { 0%, 100% { transform: rotate(-3deg) } 50% { transform: rotate(3deg) } }
+@keyframes blink { 0%, 100% { transform: scaleY(1) } 50% { transform: scaleY(.1) } }
+@keyframes press { 0%, 100% { transform: scale(1) } 50% { transform: scale(.8) } }
+@keyframes zzz { 0% { opacity: 0; transform: translate(0px, 0px) scale(.6) } 15% { opacity: 1 } 80% { opacity: .85 } 100% { opacity: 0; transform: translate(70px, -160px) scale(1.35) } }
+@keyframes burst { 0% { opacity: 0; transform: translate(0px, 0px) rotate(0deg) scale(.4) } 10% { opacity: 1 } 80% { opacity: 1 } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1) } }
+@keyframes sweep { 0% { transform: translate(-90px, -130px) } 33% { transform: translate(50px, -60px) } 66% { transform: translate(-40px, 30px) } 100% { transform: translate(80px, 110px) } }
+@keyframes drop { from { transform: translateY(var(--dy0, -420px)) } to { transform: translateY(0px) } }
+@keyframes lid { from { transform: translate(70px, -160px) rotate(-24deg) } to { transform: translate(0px, 0px) rotate(0deg) } }
+@keyframes open { from { transform: translateY(0px) } to { transform: translateY(-20px) } }
+@keyframes toRed { from { color: #1b1a17 } to { color: #b5301a } }
+@keyframes glow { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
+@keyframes shiftX { from { transform: translateX(var(--sx)) } to { transform: translateX(0px) } }
+.shift { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<!-- The paper stays flat: a soft gradient here bands into visible rings once the video is compressed. -->
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <g id="coin">
+    <circle r="40" fill="#e9b949" stroke="#1b1a17" stroke-width="5"/>
+    <circle r="29" fill="none" stroke="#b8862a" stroke-width="4"/>
+    <text y="14" text-anchor="middle" style="font:700 40px Georgia, serif; fill:#7a5810">$</text>
+  </g>
+  <g id="person">
+    <circle cy="-48" r="28"/>
+    <path d="M-50 60 V36 C-50 8 -28 -6 0 -6 C28 -6 50 8 50 36 V60 Z"/>
+  </g>
+  <g id="bug" stroke="#1b1a17" stroke-width="5" stroke-linecap="round">
+    <path d="M-20 -12 L-40 -26 M-24 6 L-46 6 M-20 22 L-38 38 M20 -12 L40 -26 M24 6 L46 6 M20 22 L38 38 M-7 -36 L-16 -52 M7 -36 L16 -52" fill="none"/>
+    <ellipse cy="6" rx="26" ry="32" fill="#b5301a"/>
+    <circle cy="-30" r="13" fill="#1b1a17"/>
+    <path d="M0 -24 V36" fill="none" stroke-width="4"/>
+    <circle cx="-11" cy="-2" r="4.5" fill="#1b1a17" stroke="none"/>
+    <circle cx="12" cy="14" r="4.5" fill="#1b1a17" stroke="none"/>
+  </g>
+  <g id="doc">
+    <path d="M-110 -140 H60 L110 -90 V140 H-110 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M60 -140 V-90 H110" fill="none" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <g stroke="#cfc7b6" stroke-width="13" stroke-linecap="round">
+      <path d="M-74 -86 H24"/><path d="M-50 -50 H70"/><path d="M-50 -14 H40"/>
+      <path d="M-74 22 H60"/><path d="M-50 58 H74"/><path d="M-74 94 H10"/>
+    </g>
+  </g>
+  <g id="mag">
+    <path d="M38 38 L94 94" stroke="#1b1a17" stroke-width="22" stroke-linecap="round"/>
+    <circle r="54" fill="rgba(255,255,255,.55)" stroke="#1b1a17" stroke-width="11"/>
+    <path d="M-28 -18 A34 34 0 0 1 -6 -32" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <g id="safe">
+    <rect x="-170" y="176" width="64" height="24" rx="6" fill="#1b1a17"/>
+    <rect x="106" y="176" width="64" height="24" rx="6" fill="#1b1a17"/>
+    <rect x="-200" y="-180" width="400" height="362" rx="24" fill="#d8d0bf" stroke="#1b1a17" stroke-width="7"/>
+    <rect x="-168" y="-148" width="336" height="298" rx="14" fill="#e8e2d4" stroke="#1b1a17" stroke-width="6"/>
+    <circle cx="-34" r="64" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/>
+    <path d="M14 0 H24 M-34 48 V58 M-82 0 H-92 M-34 -48 V-58 M0 34 L7 41 M-68 34 L-75 41 M-68 -34 L-75 -41 M0 -34 L7 -41" stroke="#1b1a17" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="-34" r="15" fill="#1b1a17"/>
+    <rect x="78" y="-62" width="24" height="124" rx="12" fill="#1b1a17"/>
+  </g>
+  <g id="rocket">
+    <path d="M-18 44 L0 86 L18 44 Z" fill="#e9b949" stroke="#1b1a17" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M-34 6 L-62 52 L-32 46 Z M34 6 L62 52 L32 46 Z" fill="#b5301a" stroke="#1b1a17" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M0 -96 C38 -64 44 -8 36 46 H-36 C-44 -8 -38 -64 0 -96 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <circle cy="-24" r="17" fill="#9cc7d8" stroke="#1b1a17" stroke-width="5"/>
+  </g>
+  <g id="chip">
+    <path d="M-40 -82 V-106 M0 -82 V-106 M40 -82 V-106 M-40 82 V106 M0 82 V106 M40 82 V106 M-82 -40 H-106 M-82 0 H-106 M-82 40 H-106 M82 -40 H106 M82 0 H106 M82 40 H106" stroke="#1b1a17" stroke-width="9" stroke-linecap="round"/>
+    <rect x="-82" y="-82" width="164" height="164" rx="24" fill="#1b1a17"/>
+    <rect x="-60" y="-60" width="120" height="120" rx="14" fill="none" stroke="#e9b949" stroke-width="4"/>
+    <text y="23" text-anchor="middle" style="font:700 66px 'Segoe UI', sans-serif; fill:#f3efe6">AI</text>
+  </g>
+  <g id="piggy">
+    <rect x="-104" y="60" width="38" height="58" rx="12" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    <rect x="-46" y="70" width="38" height="52" rx="12" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    <rect x="30" y="70" width="38" height="52" rx="12" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    <rect x="84" y="60" width="38" height="58" rx="12" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    <path d="M56 -92 L82 -150 L112 -80 Z" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-150 -6 C-182 -12 -184 -44 -164 -46 C-146 -48 -150 -22 -170 -20" fill="none" stroke="#1b1a17" stroke-width="6" stroke-linecap="round"/>
+    <ellipse rx="152" ry="112" fill="#f2bdbb" stroke="#1b1a17" stroke-width="7"/>
+    <ellipse cx="150" cy="14" rx="28" ry="36" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    <ellipse cx="143" cy="4" rx="5" ry="8" fill="#1b1a17"/>
+    <ellipse cx="157" cy="24" rx="5" ry="8" fill="#1b1a17"/>
+    <circle cx="96" cy="-32" r="9" fill="#1b1a17"/>
+    <rect x="-44" y="-114" width="88" height="14" rx="7" fill="#1b1a17"/>
+  </g>
+  <g id="map">
+    <path d="M-210 -140 L-70 -112 L70 -150 L210 -122 V138 L70 110 L-70 148 L-210 120 Z" fill="#ecdcb4" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-70 -112 V148 M70 -150 V110" stroke="#cdb685" stroke-width="5"/>
+    <path d="M-170 96 C-110 50 -150 -20 -60 -26 S20 70 96 20 S170 -60 140 -84" fill="none" stroke="#7a5810" stroke-width="6" stroke-dasharray="2 16" stroke-linecap="round"/>
+  </g>
+  <g id="thief">
+    <path d="M-52 62 V38 C-52 8 -30 -6 0 -6 C30 -6 52 8 52 38 V62 Z" fill="#2d2b27"/>
+    <circle cy="-48" r="29" fill="#8c8578"/>
+    <path d="M-31 -54 C-31 -92 31 -92 31 -54 Z" fill="#1b1a17"/>
+    <rect x="-33" y="-55" width="66" height="18" rx="9" fill="#1b1a17"/>
+    <circle cx="-12" cy="-46" r="4.5" fill="#f3efe6"/>
+    <circle cx="12" cy="-46" r="4.5" fill="#f3efe6"/>
+  </g>
+  <g id="wallet">
+    <rect x="-112" y="-74" width="224" height="148" rx="22" fill="#8a6440" stroke="#1b1a17" stroke-width="6"/>
+    <path d="M-112 -40 H112" stroke="#6e4f31" stroke-width="5"/>
+    <rect x="34" y="-26" width="92" height="58" rx="16" fill="#a37a52" stroke="#1b1a17" stroke-width="6"/>
+    <circle cx="68" cy="3" r="10" fill="#e9b949" stroke="#1b1a17" stroke-width="3"/>
+  </g>
+  <g id="cal">
+    <rect x="-82" y="-72" width="164" height="152" rx="14" fill="#fbf9f4"/>
+    <rect x="-79" y="-69" width="158" height="39" rx="11" fill="#b5301a"/>
+    <rect x="-79" y="-46" width="158" height="16" fill="#b5301a"/>
+    <g fill="#cfc7b6">
+      <rect x="-62" y="-14" width="22" height="20" rx="4"/><rect x="-28" y="-14" width="22" height="20" rx="4"/><rect x="6" y="-14" width="22" height="20" rx="4"/><rect x="40" y="-14" width="22" height="20" rx="4"/>
+      <rect x="-62" y="16" width="22" height="20" rx="4"/><rect x="-28" y="16" width="22" height="20" rx="4"/><rect x="6" y="16" width="22" height="20" rx="4"/><rect x="40" y="16" width="22" height="20" rx="4"/>
+      <rect x="-62" y="46" width="22" height="20" rx="4"/><rect x="-28" y="46" width="22" height="20" rx="4"/><rect x="6" y="46" width="22" height="20" rx="4"/>
+    </g>
+    <path d="M-82 -30 H82" stroke="#1b1a17" stroke-width="6"/>
+    <rect x="-82" y="-72" width="164" height="152" rx="14" fill="none" stroke="#1b1a17" stroke-width="6"/>
+    <path d="M-44 -88 V-58 M44 -88 V-58" stroke="#1b1a17" stroke-width="9" stroke-linecap="round"/>
+  </g>
+  <g id="tag">
+    <path d="M-120 -52 H72 L118 0 L72 52 H-120 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="78" r="10" fill="#f3efe6" stroke="#1b1a17" stroke-width="4"/>
+    <text x="-24" y="19" text-anchor="middle" style="font:700 54px Consolas, monospace; fill:#b5301a">$$$$</text>
+  </g>
+  <g id="office">
+    <rect x="-84" y="-104" width="168" height="208" rx="6" fill="#d8d0bf" stroke="#1b1a17" stroke-width="6"/>
+    <g fill="#9cc7d8" stroke="#1b1a17" stroke-width="3">
+      <rect x="-58" y="-80" width="28" height="28"/><rect x="-14" y="-80" width="28" height="28"/><rect x="30" y="-80" width="28" height="28"/>
+      <rect x="-58" y="-36" width="28" height="28"/><rect x="-14" y="-36" width="28" height="28"/><rect x="30" y="-36" width="28" height="28"/>
+      <rect x="-58" y="8" width="28" height="28"/><rect x="30" y="8" width="28" height="28"/>
+    </g>
+    <rect x="-20" y="52" width="40" height="52" fill="#1b1a17"/>
+  </g>
+  <g id="computer">
+    <rect x="-96" y="-84" width="192" height="130" rx="12" fill="#1b1a17"/>
+    <rect x="-82" y="-70" width="164" height="102" rx="4" fill="#9cc7d8"/>
+    <path d="M-16 46 L-24 84 H24 L16 46 Z" fill="#5f5b51" stroke="#1b1a17" stroke-width="4" stroke-linejoin="round"/>
+    <rect x="-56" y="82" width="112" height="14" rx="7" fill="#1b1a17"/>
+  </g>
+  <g id="eye">
+    <path d="M-66 0 C-34 -44 34 -44 66 0 C34 44 -34 44 -66 0 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="7" stroke-linejoin="round"/>
+    <circle r="20" fill="#1b1a17"/>
+    <circle cx="7" cy="-7" r="6" fill="#fbf9f4"/>
+  </g>
+  <g id="pencil">
+    <g transform="rotate(-40)">
+      <rect x="-74" y="-16" width="112" height="32" fill="#e9b949" stroke="#1b1a17" stroke-width="6"/>
+      <path d="M38 -16 L76 0 L38 16 Z" fill="#f1dcb4" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M64 -5 L76 0 L64 5 Z" fill="#1b1a17"/>
+      <rect x="-98" y="-16" width="24" height="32" rx="4" fill="#e9a8a6" stroke="#1b1a17" stroke-width="6"/>
+    </g>
+  </g>
+  <path id="shackle" d="M-26 -10 V-36 A26 26 0 0 1 26 -36 V-10" fill="none" stroke="#1b1a17" stroke-width="11" stroke-linecap="round"/>
+  <g id="lockbody">
+    <rect x="-44" y="-14" width="88" height="70" rx="13" fill="#b5301a" stroke="#1b1a17" stroke-width="6"/>
+    <circle cy="14" r="10" fill="#f3efe6"/>
+    <rect x="-4.5" y="16" width="9" height="22" rx="3" fill="#f3efe6"/>
+  </g>
+  <g id="key">
+    <path d="M40 -8 H-70 V8 H40 Z" fill="#e9b949" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-70 8 V30 H-52 V8 M-40 8 V24 H-24 V8" fill="#e9b949" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="70" r="30" fill="#e9b949" stroke="#1b1a17" stroke-width="6"/>
+    <circle cx="70" r="11" fill="#f3efe6" stroke="#1b1a17" stroke-width="4"/>
+  </g>
+  <g id="shield">
+    <path d="M0 -128 L104 -86 V8 C104 78 56 118 0 140 C-56 118 -104 78 -104 8 V-86 Z" fill="#24643f" stroke="#1b1a17" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M-40 4 L-10 34 L44 -26" fill="none" stroke="#f3efe6" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="okbadge">
+    <circle r="34" fill="#24643f" stroke="#1b1a17" stroke-width="5"/>
+    <path d="M-16 1 L-5 13 L17 -11" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="nobadge">
+    <circle r="34" fill="#b5301a" stroke="#1b1a17" stroke-width="5"/>
+    <path d="M-12 -12 L12 12 M12 -12 L-12 12" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <path id="bigx" d="M-60 -60 L60 60 M60 -60 L-60 60" fill="none" stroke="#b5301a" stroke-width="16" stroke-linecap="round"/>
+  <g id="hat">
+    <path d="M-74 -70 C-74 -162 74 -162 74 -70 Z" fill="#1b1a17"/>
+    <rect x="-74" y="-94" width="148" height="24" fill="#b5301a"/>
+    <ellipse cy="-68" rx="124" ry="18" fill="#1b1a17"/>
+  </g>
+  <g id="glasses" fill="none" stroke="#1b1a17" stroke-width="7" stroke-linecap="round">
+    <circle cx="-48" r="38" fill="rgba(255,255,255,.45)"/>
+    <circle cx="48" r="38" fill="rgba(255,255,255,.45)"/>
+    <path d="M-10 -6 Q0 -16 10 -6 M-86 -4 L-114 -16 M86 -4 L114 -16"/>
+  </g>
+  <g id="bowtie">
+    <path d="M0 130 L-52 104 L-52 156 Z M0 130 L52 104 L52 156 Z" fill="#b5301a" stroke="#1b1a17" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="-13" y="118" width="26" height="24" rx="7" fill="#8f2312" stroke="#1b1a17" stroke-width="4"/>
+  </g>
+  <g id="eyes-open"><circle cx="-48" cy="4" r="7.5" fill="#1b1a17"/><circle cx="48" cy="4" r="7.5" fill="#1b1a17"/></g>
+  <g id="eyes-shut" fill="none" stroke="#1b1a17" stroke-width="6" stroke-linecap="round"><path d="M-62 2 Q-48 13 -34 2 M34 2 Q48 13 62 2"/></g>
+  <g id="opensign">
+    <path d="M0 -60 L-74 0 M0 -60 L74 0" stroke="#5f5b51" stroke-width="4" fill="none"/>
+    <circle cy="-62" r="8" fill="#5f5b51"/>
+    <rect x="-96" y="0" width="192" height="86" rx="14" fill="#fbf9f4" stroke="#24643f" stroke-width="6"/>
+    <text y="59" text-anchor="middle" style="font:700 46px Consolas, monospace; letter-spacing:.08em; fill:#24643f">OPEN</text>
+  </g>
+</defs>
+</svg>
+
+<div id="mark">NOBODY</div>
+<div id="chapters"></div>
+
+<!-- 1. Apps hold money, and one mistake loses it -->
+<section class="scene" data-in="0">
+  <div class="shift a" style="--sx:-290px" data-a="shiftX@1-0.2/0.6">
+    <div class="c kicker" style="left:1250px; top:232px">Money inside one app</div>
+    <div class="c num" style="left:1250px; top:280px" data-a="toRed@1:take+0.2/0.35" data-count="1250000,0@1:take+0.2/1.4">$1,250,000</div>
+  </div>
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(1250 600)"><g class="a" style="--sx:-290px" data-a="shiftX@1-0.2/0.6"><g class="a" data-a="shake@1:take/0.6"><use href="#safe"/></g></g></g>
+    <g transform="translate(560 600) scale(1.25)"><g class="a" data-a="inL@1-0.15/0.55">
+      <use href="#doc"/>
+      <rect class="a" data-a="fade@1:mistake/0.3" x="-88" y="7" width="168" height="30" rx="8" fill="rgba(181,48,26,.25)"/>
+      <g transform="translate(96 22) scale(.62)"><g class="a" data-a="pop@1:mistake+0.1/0.45; wiggle@1:mistake+0.6/0.5/8" data-sfx="pop"><use href="#bug"/></g></g>
+    </g></g>
+    <path class="a" data-a="draw@1:thief-0.25/0.5" pathLength="1" style="stroke-dasharray:1 1" d="M720 548 C805 470 955 470 1030 540 M1021 514 L1030 540 L1003 535" fill="none" stroke="#b5301a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(1216 600)">
+      <g class="a" style="--dx:620px; --dy:-330px; --rot:220deg" data-a="burst@1:take+0.1/1.1" data-sfx="coin"><use href="#coin"/></g>
+      <g class="a" style="--dx:700px; --dy:-120px; --rot:-160deg" data-a="burst@1:take+0.17/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:660px; --dy:120px; --rot:190deg" data-a="burst@1:take+0.24/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:560px; --dy:-420px; --rot:-240deg" data-a="burst@1:take+0.31/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:760px; --dy:40px; --rot:260deg" data-a="burst@1:take+0.38/1.1" data-sfx="coin"><use href="#coin"/></g>
+      <g class="a" style="--dx:600px; --dy:200px; --rot:-200deg" data-a="burst@1:take+0.45/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:720px; --dy:-260px; --rot:180deg" data-a="burst@1:take+0.52/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:640px; --dy:-40px; --rot:-220deg" data-a="burst@1:take+0.59/1.1"><use href="#coin"/></g>
+      <g class="a" style="--dx:580px; --dy:230px; --rot:240deg" data-a="burst@1:take+0.66/1.1"><use href="#coin"/></g>
+    </g>
+    <g transform="translate(1250 610)"><g class="a" style="--r:-9deg" data-a="stamp@1:take+0.6/0.45" data-sfx="stamp">
+      <rect x="-236" y="-70" width="472" height="140" rx="14" fill="rgba(243,239,230,.84)" stroke="#b5301a" stroke-width="10"/>
+      <text y="28" text-anchor="middle" class="st">STOLEN</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 2. A real check is costly and slow, so people skip it -->
+<section class="scene" data-in="2">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <path class="a" data-a="draw@2+0.15/0.4" pathLength="1" style="stroke-dasharray:1 1" d="M612 450 H828 M806 432 L828 450 L806 468" fill="none" stroke="#1b1a17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path class="a" data-a="draw@2+0.45/0.4" pathLength="1" style="stroke-dasharray:1 1" d="M1092 450 H1308 M1286 432 L1308 450 L1286 468" fill="none" stroke="#1b1a17" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(480 450)"><g class="a" data-a="pop@2-0.15/0.5"><circle r="118" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/><use href="#doc" transform="scale(.52)"/></g></g>
+    <text x="480" y="652" text-anchor="middle" class="lab a" data-a="up@2-0.1/0.5">Build</text>
+    <g class="a" data-a="dim@3:skip/0.5">
+      <g transform="translate(960 450)"><g class="a" data-a="pop@2+0.15/0.5"><circle r="118" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/><use href="#mag" transform="translate(-14 -14) scale(.8)"/></g></g>
+      <text x="960" y="652" text-anchor="middle" class="lab a" data-a="up@2+0.2/0.5">Check</text>
+      <g transform="translate(856 236) rotate(-7) scale(.82)"><g class="a" data-a="pop@2:thousands-0.25/0.5" data-sfx="pop"><use href="#tag"/></g></g>
+      <g transform="translate(1080 232) scale(.74)"><g class="a" data-a="pop@2:weeks-0.2/0.5" data-sfx="pop"><use href="#cal"/></g></g>
+    </g>
+    <g transform="translate(1440 450)"><g class="a" data-a="pop@2+0.45/0.5"><circle r="118" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/><g class="a" data-a="shake@3:hope/0.7"><use href="#rocket" transform="scale(.95)"/></g></g></g>
+    <text x="1440" y="652" text-anchor="middle" class="lab a" data-a="up@2+0.5/0.5">Launch</text>
+    <path class="a" data-a="draw@3:skip-0.1/0.8" pathLength="1" style="stroke-dasharray:1 1" d="M565 540 C700 800 1220 800 1355 540 M1330 556 L1355 540 L1356 570" fill="none" stroke="#b5301a" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="960" y="805" text-anchor="middle" class="lab-s a" style="font-style:italic; fill:#b5301a" data-a="fade@3:skip+0.3/0.4">skip it</text>
+    <g transform="translate(960 452)"><g class="a" style="--r:-8deg" data-a="stamp@3:skip+0.45/0.45" data-sfx="stamp">
+      <rect x="-200" y="-56" width="400" height="112" rx="12" fill="rgba(243,239,230,.86)" stroke="#b5301a" stroke-width="9"/>
+      <text y="24" text-anchor="middle" class="st" style="font-size:68px">SKIPPED</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 3. Meet Nobody -->
+<section class="scene" data-in="4">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(960 292) scale(.95)"><g class="a" data-a="pop@4-0.25/0.6" data-sfx="pop"><g class="a" data-a="bob@4+0.4/3/4">
+      <use href="#hat"/><use href="#glasses"/><g class="a" data-a="blink@4:nobody+0.5/0.24"><use href="#eyes-open"/></g><use href="#bowtie"/>
+    </g></g></g>
+  </svg>
+  <div class="c big" style="left:960px; top:462px" data-a="up@4-0.05/0.6">Nobody</div>
+  <div class="c sub" style="left:960px; top:690px" data-a="up@4+0.35/0.6">Safety checks for apps on NEAR</div>
+</section>
+
+<!-- 4. It finds the mistakes, cheaply and fast -->
+<section class="scene" data-in="5">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g class="a" style="--sx:420px" data-a="shiftX@6-0.3/0.6"><g transform="translate(540 520) scale(1.3)">
+      <g class="a" data-a="up@5-0.15/0.5"><use href="#doc"/></g>
+      <g transform="translate(64 -50)"><g class="a" data-a="pop@5:common/0.4" data-sfx="pop"><circle r="34" fill="rgba(181,48,26,.12)" stroke="#b5301a" stroke-width="5"/><use href="#bug" transform="scale(.42)"/></g></g>
+      <g transform="translate(10 58)"><g class="a" data-a="pop@5:stolen-0.15/0.4" data-sfx="pop"><circle r="34" fill="rgba(181,48,26,.12)" stroke="#b5301a" stroke-width="5"/><use href="#bug" transform="scale(.42)"/></g></g>
+      <g class="a" data-a="sweep@5+0.1/2.6; out@5e-0.1/0.3"><use href="#mag" transform="scale(.9)"/></g>
+    </g></g>
+    <g class="a" data-a="up@6:costs-0.15/0.5"><text x="1170" y="440" text-anchor="middle" style="font-weight:700; font-size:104px; fill:#24643f">$1–$5</text></g>
+    <text x="1170" y="500" text-anchor="middle" class="note a" data-a="fade@6:costs/0.4">A CHECK</text>
+    <g class="a" data-a="up@6:minutes-0.15/0.5"><text x="1590" y="440" text-anchor="middle" style="font-weight:700; font-size:104px; fill:#24643f">minutes</text></g>
+    <text x="1590" y="500" text-anchor="middle" class="note a" data-a="fade@6:minutes/0.4">FOR YOUR REPORT</text>
+    <g class="a" data-a="fade@6:costs+0.25/0.4"><text x="1170" y="590" text-anchor="middle" style="font-size:54px; fill:#5f5b51">$ thousands</text></g>
+    <g class="a" data-a="fade@6:minutes+0.25/0.4"><text x="1590" y="590" text-anchor="middle" style="font-size:54px; fill:#5f5b51">weeks</text></g>
+    <path class="a" data-a="draw@6:weeks-0.1/0.35" pathLength="1" style="stroke-dasharray:1 1" d="M1020 574 H1320" stroke="#b5301a" stroke-width="8" stroke-linecap="round"/>
+    <path class="a" data-a="draw@6:weeks+0.05/0.35" pathLength="1" style="stroke-dasharray:1 1" d="M1505 574 H1675" stroke="#b5301a" stroke-width="8" stroke-linecap="round"/>
+  </svg>
+</section>
+
+<!-- 5. Nobody runs it -->
+<section class="scene" data-in="7">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(1010 250)"><g class="a" data-a="down@7/0.5"><g class="a" style="transform-origin:50% 0%" data-a="swing@7+0.4/2.6/4"><use href="#opensign"/></g></g></g>
+    <g class="a" data-a="fade@7-0.15/0.4">
+      <rect x="524" y="506" width="232" height="160" rx="28" fill="#cfc4ad" stroke="#1b1a17" stroke-width="6"/>
+      <rect x="544" y="524" width="192" height="76" rx="18" fill="#ddd3bf"/>
+    </g>
+    <g transform="translate(640 450) scale(.86)"><g class="a" data-a="pop@7:nobody-0.15/0.6" data-sfx="pop"><g class="a" data-a="bob@7:nobody+0.5/3/3">
+      <use href="#hat"/><use href="#glasses"/><use href="#eyes-open"/><use href="#bowtie"/>
+    </g></g></g>
+    <g class="a" data-a="fade@7-0.15/0.4">
+      <rect x="330" y="640" width="620" height="30" rx="6" fill="#b58a5a" stroke="#1b1a17" stroke-width="7"/>
+      <rect x="354" y="670" width="572" height="136" fill="#a27a4e" stroke="#1b1a17" stroke-width="7"/>
+    </g>
+    <g class="a" data-a="up@7:nobody/0.5">
+      <path d="M532 642 L546 594 H734 L748 642 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="5" stroke-linejoin="round"/>
+      <text x="640" y="630" text-anchor="middle" style="font-family:var(--mono); font-weight:700; font-size:30px; letter-spacing:.16em">NOBODY</text>
+    </g>
+    <g class="a" data-a="up@8:staff-0.25/0.45">
+      <g transform="translate(1290 330) scale(.85)"><use href="#person" fill="#8c8578"/></g>
+      <text x="1400" y="350" class="lab">No staff</text>
+    </g>
+    <g transform="translate(1290 330)"><g class="a" data-a="pop@8:staff+0.05/0.35" data-sfx="pop"><use href="#bigx" transform="scale(.66)"/></g></g>
+    <g class="a" data-a="up@8:office-0.25/0.45">
+      <g transform="translate(1290 510) scale(.72)"><use href="#office"/></g>
+      <text x="1400" y="528" class="lab">No office</text>
+    </g>
+    <g transform="translate(1290 510)"><g class="a" data-a="pop@8:office+0.05/0.35" data-sfx="pop"><use href="#bigx" transform="scale(.66)"/></g></g>
+    <g class="a" data-a="up@8:computer-0.25/0.45">
+      <g transform="translate(1290 690) scale(.72)"><use href="#computer"/></g>
+      <text x="1400" y="708" class="lab">No computer</text>
+    </g>
+    <g transform="translate(1290 690)"><g class="a" data-a="pop@8:computer+0.05/0.35" data-sfx="pop"><use href="#bigx" transform="scale(.66)"/></g></g>
+  </svg>
+</section>
+
+<!-- 6. Share a link and pay with any coin -->
+<section class="scene" data-in="9">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(760 520) scale(.95)">
+      <rect x="-472" y="-294" width="944" height="568" rx="28" fill="#1b1a17"/>
+      <rect x="-446" y="-268" width="892" height="512" fill="#151412"/>
+      <path d="M-566 274 H566 L520 322 H-520 Z" fill="#d8d0bf" stroke="#1b1a17" stroke-width="6" stroke-linejoin="round"/>
+      <rect x="-80" y="274" width="160" height="14" rx="7" fill="#b9b09d"/>
+    </g>
+  </svg>
+  <img class="shot" src="shop-top.png" alt="" style="left:336.3px; top:265.4px; width:847.4px; height:486.6px">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <rect class="a" data-a="ring@9:link-0.15/0.35" x="492" y="593" width="547" height="53" rx="10" fill="none" stroke="#e8664e" stroke-width="5"/>
+    <rect class="a" data-a="ring@9:pay-0.15/0.35" x="641" y="648" width="170" height="51" rx="10" fill="none" stroke="#e8664e" stroke-width="5"/>
+    <g transform="translate(1180 840)"><g data-arc='[{"at":"9:share","dur":0.8,"to":[-480,-218],"via":[-200,-340]},{"at":"9:pay-0.45","dur":0.5,"to":[-460,-164],"via":[-470,-190]}]'>
+      <g class="a" data-a="fade@9-0.2/0.3; press@9:pay+0.05/0.25" data-sfx="pop" data-sfx-at="9:pay+0.1">
+        <path d="M0 0 L0 46 L12 35 L21 55 L30 51 L21 31 L37 31 Z" fill="#fff" stroke="#1b1a17" stroke-width="4" stroke-linejoin="round"/>
+      </g>
+    </g></g>
+    <g transform="translate(1480 300)"><g data-arc='[{"at":"9:coin+0.15","dur":0.8,"to":[-754,374],"via":[-380,-60],"scale":[1,0.35],"fade":true}]' data-sfx="coin"><g class="a" data-a="pop@9:almost-0.1/0.45">
+      <circle r="50" fill="#f7931a" stroke="#1b1a17" stroke-width="5"/><text y="10" text-anchor="middle" class="tk">BTC</text>
+    </g></g></g>
+    <g transform="translate(1660 410)"><g data-arc='[{"at":"9:coin+0.25","dur":0.8,"to":[-934,264],"via":[-470,-120],"scale":[1,0.35],"fade":true}]'><g class="a" data-a="pop@9:almost/0.45">
+      <circle r="50" fill="#627eea" stroke="#1b1a17" stroke-width="5"/><text y="10" text-anchor="middle" class="tk">ETH</text>
+    </g></g></g>
+    <g transform="translate(1500 530)"><g data-arc='[{"at":"9:coin+0.35","dur":0.8,"to":[-774,144],"via":[-390,-150],"scale":[1,0.35],"fade":true}]'><g class="a" data-a="pop@9:almost+0.1/0.45">
+      <circle r="50" fill="#9945ff" stroke="#1b1a17" stroke-width="5"/><text y="10" text-anchor="middle" class="tk">SOL</text>
+    </g></g></g>
+    <g transform="translate(1690 650)"><g data-arc='[{"at":"9:coin+0.45","dur":0.8,"to":[-964,24],"via":[-480,-190],"scale":[1,0.35],"fade":true}]'><g class="a" data-a="pop@9:almost+0.2/0.45">
+      <circle r="50" fill="#2775ca" stroke="#1b1a17" stroke-width="5"/><text y="10" text-anchor="middle" class="tk">USDC</text>
+    </g></g></g>
+    <g transform="translate(1530 770)"><g data-arc='[{"at":"9:coin+0.55","dur":0.8,"to":[-804,-96],"via":[-400,-240],"scale":[1,0.35],"fade":true}]' data-sfx="coin"><g class="a" data-a="pop@9:almost+0.3/0.45">
+      <circle r="50" fill="#1b1a17" stroke="#1b1a17" stroke-width="5"/><text y="10" text-anchor="middle" class="tk">NEAR</text>
+    </g></g></g>
+    <g transform="translate(866 673)"><g class="a" data-a="pop@9:blockchain+0.35/0.4"><use href="#okbadge" transform="scale(.8)"/></g></g>
+  </svg>
+</section>
+
+<!-- 7. The payment wakes it; waiting costs nothing -->
+<section class="scene" data-in="10">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(960 440) scale(1.3)">
+      <g class="a" data-a="bob@10-0.6/3/4">
+        <use href="#hat"/><use href="#glasses"/>
+        <g class="a" data-a="out@10:wakes/0.12"><use href="#eyes-shut"/></g>
+        <g class="a" data-a="fade@10:wakes/0.12"><use href="#eyes-open"/></g>
+        <use href="#bowtie"/>
+      </g>
+      <g class="a" data-a="pop@10:wakes/0.35; out@10:wakes+1/0.4">
+        <path d="M-150 -170 L-122 -140 M150 -170 L122 -140 M0 -232 V-198 M-196 -80 H-164 M196 -80 H164" fill="none" stroke="#b5301a" stroke-width="7" stroke-linecap="round"/>
+      </g>
+    </g>
+    <g class="a" data-a="out@10:wakes/0.3">
+      <text x="1120" y="290" class="zz a" data-a="zzz@10-1.6/2.4/8">z</text>
+      <text x="1120" y="290" class="zz a" data-a="zzz@10-0.8/2.4/8">z</text>
+      <text x="1120" y="290" class="zz a" data-a="zzz@10/2.4/8">z</text>
+    </g>
+    <g transform="translate(960 214)"><g class="a" data-a="drop@10:payment-0.35/0.5; out@10:wakes/0.15" data-sfx="coin" data-sfx-at="10:payment+0.15"><use href="#coin"/></g></g>
+  </svg>
+  <div class="c" style="left:960px; top:744px" data-a="up@10:between/0.5"><span class="pill">Waiting costs $0</span></div>
+</section>
+
+<!-- 8. A sealed box nobody can open or change -->
+<section class="scene" data-in="11">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(960 520)">
+      <g class="a" style="--dy0:-520px" data-a="drop@11-0.2/0.75"><use href="#doc" transform="translate(0 -36) scale(.55)"/></g>
+      <rect x="-200" y="-84" width="400" height="262" rx="16" fill="#3a3833" stroke="#1b1a17" stroke-width="7"/>
+      <path d="M-200 -36 H200" stroke="#2a2925" stroke-width="5"/>
+      <g class="a" data-a="lid@11:sealed-0.35/0.45"><rect x="-216" y="-132" width="432" height="54" rx="12" fill="#4f4c45" stroke="#1b1a17" stroke-width="7"/></g>
+      <g transform="translate(0 72) scale(1.05)"><g class="a" data-a="pop@11:box/0.45" data-sfx="pop"><use href="#shackle"/><use href="#lockbody"/></g></g>
+    </g>
+    <g transform="translate(470 500)"><g class="a" data-a="pop@12:look-0.25/0.5">
+      <circle r="110" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/>
+      <use href="#eye"/>
+      <path d="M-72 -72 L72 72" stroke="#b5301a" stroke-width="14" stroke-linecap="round"/>
+    </g></g>
+    <text x="470" y="684" text-anchor="middle" class="lab-s a" data-a="up@12:look/0.4">No peeking</text>
+    <g transform="translate(1450 500)"><g class="a" data-a="pop@12:change-0.25/0.5">
+      <circle r="110" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/>
+      <use href="#pencil"/>
+      <path d="M-72 -72 L72 72" stroke="#b5301a" stroke-width="14" stroke-linecap="round"/>
+    </g></g>
+    <text x="1450" y="684" text-anchor="middle" class="lab-s a" data-a="up@12:change/0.4">No changes</text>
+    <g transform="translate(960 790)"><g class="a" style="--r:-4deg" data-a="stamp@12:makers-0.3/0.45" data-sfx="stamp">
+      <rect x="-380" y="-48" width="760" height="96" rx="12" fill="rgba(243,239,230,.86)" stroke="#b5301a" stroke-width="8"/>
+      <text y="19" text-anchor="middle" class="st" style="font-size:52px">NOT EVEN ITS MAKERS</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 9. NEAR's checklist, then the AI double-checks -->
+<section class="scene" data-in="13">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g class="a" data-a="up@13-0.2/0.5">
+      <rect x="420" y="215" width="560" height="590" rx="22" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/>
+      <text x="700" y="298" text-anchor="middle" style="font-weight:600; font-size:48px">Safety checklist</text>
+      <text x="700" y="340" text-anchor="middle" class="note">FROM NEAR</text>
+      <g fill="#fff" stroke="#1b1a17" stroke-width="5">
+        <rect x="470" y="388" width="44" height="44" rx="8"/><rect x="470" y="470" width="44" height="44" rx="8"/><rect x="470" y="552" width="44" height="44" rx="8"/><rect x="470" y="634" width="44" height="44" rx="8"/><rect x="470" y="716" width="44" height="44" rx="8"/>
+      </g>
+      <g fill="#d6d0c2">
+        <rect x="546" y="402" width="300" height="16" rx="8"/><rect x="546" y="484" width="250" height="16" rx="8"/><rect x="546" y="566" width="330" height="16" rx="8"/><rect x="546" y="648" width="280" height="16" rx="8"/><rect x="546" y="730" width="220" height="16" rx="8"/>
+      </g>
+    </g>
+    <rect class="a" data-a="fade@13:through+0.6/0.3" x="448" y="540" width="504" height="68" rx="12" fill="rgba(181,48,26,.13)"/>
+    <g fill="none" stroke="#24643f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(492 410)"><g class="a" data-a="pop@13:through/0.3"><path d="M-15 0 L-5 11 L17 -13"/></g></g>
+      <g transform="translate(492 492)"><g class="a" data-a="pop@13:through+0.3/0.3"><path d="M-15 0 L-5 11 L17 -13"/></g></g>
+      <g transform="translate(492 656)"><g class="a" data-a="pop@13:through+0.9/0.3"><path d="M-15 0 L-5 11 L17 -13"/></g></g>
+      <g transform="translate(492 738)"><g class="a" data-a="pop@13:through+1.2/0.3"><path d="M-15 0 L-5 11 L17 -13"/></g></g>
+    </g>
+    <g transform="translate(492 574)"><g class="a" data-a="pop@13:through+0.6/0.3" data-sfx="pop"><path d="M-12 -12 L12 12 M12 -12 L-12 12" fill="none" stroke="#b5301a" stroke-width="8" stroke-linecap="round"/></g></g>
+    <g transform="translate(1390 420) scale(1.05)"><g class="a" data-a="pop@14:ai-0.15/0.5" data-sfx="pop"><use href="#chip"/></g></g>
+    <g class="a" data-a="fade@14:every-0.4/0.4">
+      <path d="M1270 470 C1150 520 1080 574 994 574" fill="none" stroke="#1b1a17" stroke-width="5" stroke-dasharray="3 14" stroke-linecap="round"/>
+      <path d="M1014 560 L994 574 L1014 588" fill="none" stroke="#1b1a17" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(1390 650)"><g class="a" data-a="pop@14:every+0.2/0.45">
+      <path d="M-224 -50 H-20 L0 -74 L20 -50 H224 A16 16 0 0 1 240 -34 V34 A16 16 0 0 1 224 50 H-224 A16 16 0 0 1 -240 34 V-34 A16 16 0 0 1 -224 -50 Z" fill="#fbf9f4" stroke="#1b1a17" stroke-width="5"/>
+      <text y="11" text-anchor="middle" style="font-family:var(--mono); font-weight:700; font-size:30px; fill:#b5301a">Confirmed: real problem</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 10. A private report, because a public one is a treasure map -->
+<section class="scene" data-in="15">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g class="a" style="--sx:400px" data-a="shiftX@16-0.3/0.6">
+      <g transform="translate(560 492) scale(1.22)"><g class="a" data-a="up@15-0.2/0.5">
+        <use href="#doc"/>
+        <rect x="-107" y="-137" width="164" height="40" fill="#b5301a"/>
+        <text x="-92" y="-108" style="font-family:var(--mono); font-weight:700; font-size:22px; letter-spacing:.14em; fill:#fff">REPORT</text>
+      </g></g>
+      <g transform="translate(560 580) scale(1.12)"><g class="a" data-a="pop@15:private-0.15/0.45" data-sfx="pop">
+        <g class="a" data-a="open@15:open/0.3"><use href="#shackle"/></g>
+        <use href="#lockbody"/>
+      </g></g>
+      <g transform="translate(980 360)"><g data-arc='[{"at":"15:only-0.15","dur":0.8,"to":[-348,236],"via":[-120,-60]}]'><g class="a" data-a="fade@15:only-0.3/0.25; out@15:open+0.5/0.3"><use href="#key"/></g></g></g>
+      <g transform="translate(560 772)"><g class="a" style="--r:-6deg" data-a="stamp@15:open+0.15/0.45" data-sfx="stamp">
+        <rect x="-178" y="-50" width="356" height="100" rx="12" fill="rgba(243,239,230,.86)" stroke="#b5301a" stroke-width="8"/>
+        <text y="22" text-anchor="middle" class="st" style="font-size:62px">PRIVATE</text>
+      </g></g>
+    </g>
+    <g transform="translate(1340 470) scale(1.05)"><g class="a" data-a="up@16:list-0.2/0.5">
+      <use href="#map"/>
+      <text x="-176" y="102" style="font-style:italic; font-size:40px; fill:#7a5810">your bugs</text>
+    </g></g>
+    <g transform="translate(1487 382)"><g class="a" data-a="pop@16:treasure-0.1/0.35" data-sfx="pop"><path d="M-20 -20 L20 20 M20 -20 L-20 20" stroke="#b5301a" stroke-width="10" stroke-linecap="round"/></g></g>
+    <g transform="translate(1277 443)"><g class="a" data-a="pop@16:treasure+0.1/0.35"><path d="M-20 -20 L20 20 M20 -20 L-20 20" stroke="#b5301a" stroke-width="10" stroke-linecap="round"/></g></g>
+    <g transform="translate(1665 590) scale(1.25)"><g class="a" data-a="inR@16:thieves-0.25/0.45"><use href="#thief"/></g></g>
+  </svg>
+</section>
+
+<!-- 11. If the check can't finish, the money comes back -->
+<section class="scene" data-in="17">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(480 520) scale(1.3)"><g class="a" data-a="pop@17-0.2/0.5"><use href="#wallet"/></g></g>
+    <text x="480" y="700" text-anchor="middle" class="lab-s a" data-a="up@17-0.1/0.4">You</text>
+    <g transform="translate(1440 540) scale(.62)"><g class="a" data-a="pop@17-0.05/0.5">
+      <rect x="-200" y="-84" width="400" height="262" rx="16" fill="#3a3833" stroke="#1b1a17" stroke-width="7"/>
+      <rect x="-216" y="-132" width="432" height="54" rx="12" fill="#4f4c45" stroke="#1b1a17" stroke-width="7"/>
+      <g transform="translate(0 72) scale(1.05)"><use href="#shackle"/><use href="#lockbody"/></g>
+    </g></g>
+    <text x="1440" y="700" text-anchor="middle" class="lab-s a" data-a="up@17/0.4">The check</text>
+    <g transform="translate(1560 430)"><g class="a" data-a="pop@17:finished-0.1/0.4" data-sfx="pop"><use href="#nobadge"/></g></g>
+    <g transform="translate(560 440)"><g data-arc='[{"at":"17+0.05","dur":0.9,"to":[860,0],"via":[430,-300]},{"at":"17:money-0.1","dur":0.9,"to":[0,0],"via":[430,-160]}]' data-sfx="coin"><g class="a" data-a="pop@17-0.15/0.3"><use href="#coin" transform="scale(.9)"/></g></g></g>
+    <g transform="translate(960 640)"><g class="a" style="--r:-6deg" data-a="stamp@17:automatically/0.45" data-sfx="stamp">
+      <rect x="-230" y="-52" width="460" height="104" rx="12" fill="rgba(243,239,230,.86)" stroke="#b5301a" stroke-width="8"/>
+      <text y="22" text-anchor="middle" class="st" style="font-size:64px">REFUNDED</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 12. Each sale is split by fixed rules -->
+<section class="scene" data-in="18">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <text x="960" y="210" text-anchor="middle" class="note a" data-a="fade@18-0.2/0.4">EVERY SALE</text>
+    <g transform="translate(760 290)"><g data-arc='[{"at":"19:fifth","dur":0.9,"to":[-240,240],"via":[-230,30]}]' data-sfx="coin"><g class="a" data-a="pop@18-0.1/0.4"><use href="#coin"/></g></g></g>
+    <g transform="translate(860 290)"><g data-arc='[{"at":"19:rest","dur":0.9,"to":[520,330],"via":[300,40],"scale":[1,0.55],"fade":true}]'><g class="a" data-a="pop@18+0.02/0.4"><use href="#coin"/></g></g></g>
+    <g transform="translate(960 290)"><g data-arc='[{"at":"19:rest+0.1","dur":0.9,"to":[420,330],"via":[240,30],"scale":[1,0.55],"fade":true}]'><g class="a" data-a="pop@18+0.14/0.4"><use href="#coin"/></g></g></g>
+    <g transform="translate(1060 290)"><g data-arc='[{"at":"19:rest+0.2","dur":0.9,"to":[320,330],"via":[180,20],"scale":[1,0.55],"fade":true}]'><g class="a" data-a="pop@18+0.26/0.4"><use href="#coin"/></g></g></g>
+    <g transform="translate(1160 290)"><g data-arc='[{"at":"19:rest+0.3","dur":0.9,"to":[220,330],"via":[120,10],"scale":[1,0.55],"fade":true}]' data-sfx="coin"><g class="a" data-a="pop@18+0.38/0.4"><use href="#coin"/></g></g></g>
+    <text x="960" y="400" text-anchor="middle" class="lab-s a" style="font-style:italic" data-a="up@18:fixed-0.1/0.45">split by fixed rules</text>
+    <g class="a" data-a="up@18:split/0.5">
+      <g transform="translate(430 670) scale(.85)"><use href="#person" fill="#a39b8c"/></g>
+      <g transform="translate(610 670) scale(.85)"><use href="#person" fill="#8c8578"/></g>
+      <g transform="translate(520 655) scale(.9)"><use href="#person" fill="#6f685c"/></g>
+      <text x="520" y="800" text-anchor="middle" class="lab-s">Builders</text>
+    </g>
+    <g transform="translate(520 450)"><g class="a" data-a="pop@19:fifth+0.85/0.45"><text text-anchor="middle" style="font-weight:700; font-size:64px; fill:#24643f">20%</text></g></g>
+    <g class="a" data-a="up@18:split+0.15/0.5">
+      <g transform="translate(1400 620) scale(.6)"><use href="#safe"/></g>
+      <text x="1400" y="800" text-anchor="middle" class="lab-s">The company</text>
+    </g>
+  </svg>
+</section>
+
+<!-- 13. It buys its own AI with the interest on its savings -->
+<section class="scene" data-in="20">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(1380 470)">
+      <g class="a" data-a="glow@20:pays-0.1/0.6"><circle r="190" fill="rgba(233,185,73,.32)"/></g>
+      <g transform="scale(1.15)"><g class="a" data-a="pop@20-0.15/0.5" data-sfx="pop"><use href="#chip"/></g></g>
+    </g>
+    <text x="1380" y="720" text-anchor="middle" class="lab-s a" data-a="up@20:own/0.4">Its own AI</text>
+    <g transform="translate(600 500)"><g class="a" data-a="pop@20:spare-0.3/0.5"><use href="#piggy"/></g></g>
+    <text x="600" y="720" text-anchor="middle" class="lab-s a" data-a="up@20:savings/0.4">Savings with NEAR AI</text>
+    <g transform="translate(600 360) scale(.8)"><g class="a" style="--dy0:-700px" data-a="drop@20:spare/0.45; out@20:spare+0.45/0.15" data-sfx="coin" data-sfx-at="20:spare+0.45"><use href="#coin"/></g></g>
+    <g transform="translate(600 360) scale(.8)"><g class="a" style="--dy0:-700px" data-a="drop@20:spare+0.25/0.45; out@20:spare+0.7/0.15"><use href="#coin"/></g></g>
+    <g transform="translate(600 360) scale(.8)"><g class="a" style="--dy0:-700px" data-a="drop@20:spare+0.5/0.45; out@20:spare+0.95/0.15"><use href="#coin"/></g></g>
+    <g transform="translate(650 380)"><g data-arc='[{"at":"20:interest","dur":1.0,"to":[730,90],"via":[365,-260],"scale":[0.5,0.3],"fade":true}]'><g class="a" data-a="fade@20:interest-0.1/0.15"><use href="#coin"/></g></g></g>
+    <g transform="translate(650 380)"><g data-arc='[{"at":"20:interest+0.22","dur":1.0,"to":[730,90],"via":[365,-260],"scale":[0.5,0.3],"fade":true}]'><g class="a" data-a="fade@20:interest+0.12/0.15"><use href="#coin"/></g></g></g>
+    <g transform="translate(650 380)"><g data-arc='[{"at":"20:interest+0.44","dur":1.0,"to":[730,90],"via":[365,-260],"scale":[0.5,0.3],"fade":true}]'><g class="a" data-a="fade@20:interest+0.34/0.15"><use href="#coin"/></g></g></g>
+    <g transform="translate(650 380)"><g data-arc='[{"at":"20:interest+0.66","dur":1.0,"to":[730,90],"via":[365,-260],"scale":[0.5,0.3],"fade":true}]' data-sfx="coin"><g class="a" data-a="fade@20:interest+0.56/0.15"><use href="#coin"/></g></g></g>
+    <text x="1010" y="218" text-anchor="middle" class="lab-s a" style="font-style:italic; fill:#7a5810" data-a="fade@20:interest+0.2/0.4">interest</text>
+  </svg>
+</section>
+
+<!-- 14. A person sets the rules; nobody can take the money -->
+<section class="scene" data-in="21">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(360 500) scale(1.45)"><g class="a" data-a="pop@21-0.2/0.5"><use href="#person" fill="#8c8578"/></g></g>
+    <text x="360" y="670" text-anchor="middle" class="lab-s a" data-a="up@21/0.4">A person</text>
+    <g transform="translate(440 410)"><g class="a" data-a="pop@22:owner/0.4" data-sfx="pop"><use href="#nobadge"/></g></g>
+  </svg>
+  <div class="card a" style="left:580px; top:176px; width:820px" data-a="up@21+0.1/0.5">
+    <div class="card-h">The rules</div>
+    <div class="row a" data-a="inL@21:price-0.2/0.45"><span>Price</span><b>$1 to $5</b></div>
+    <div class="row a" data-a="inL@21:daily-0.2/0.45"><span>Daily AI budget</span><b>$5</b></div>
+    <div class="row a" data-a="inL@21:stop-0.2/0.45"><span>Emergency stop</span><i class="stop">STOP</i></div>
+    <div class="row a" data-a="inL@22:button-0.3/0.45"><span>Take the money out</span><i class="slot"></i></div>
+  </div>
+  <div class="hstamp a" style="left:1010px; top:627px; --r:-5deg" data-a="stamp@22:button+0.4/0.45" data-sfx="stamp">NO SUCH BUTTON</div>
+</section>
+
+<!-- 15. Every coin is on a public page -->
+<section class="scene" data-in="23">
+  <div class="card a" style="left:520px; top:168px; width:860px" data-a="up@23-0.2/0.5">
+    <div class="card-h">The books <i class="tagp">PUBLIC</i></div>
+    <div class="card-sub">Example entries. Anyone can read them.</div>
+    <div class="lrow a" data-a="inL@23:coin-0.2/0.4"><span>Sale</span><b class="in">+ $1.00</b></div>
+    <div class="lrow a" data-a="inL@23:coin+0.1/0.4"><span>Paid to builders</span><b>$0.20</b></div>
+    <div class="lrow a" data-a="inL@23:coin+0.4/0.4"><span>AI used</span><b>$0.003</b></div>
+    <div class="lrow a" data-a="inL@23:coin+0.7/0.4"><span>Computer time</span><b>0.03 NEAR</b></div>
+    <div class="lrow a" data-a="inL@23:coin+1.0/0.4"><span>Saved with NEAR AI</span><b>2 NEAR</b></div>
+  </div>
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g class="a" data-a="pop@23:anyone-0.1/0.45" data-sfx="pop">
+      <g transform="translate(1580 410) scale(.8)"><use href="#person" fill="#8c8578"/></g>
+      <g transform="translate(1580 312) scale(.38)"><use href="#eye"/></g>
+    </g>
+    <g class="a" data-a="pop@23:anyone+0.05/0.45">
+      <g transform="translate(1730 560) scale(.8)"><use href="#person" fill="#6f685c"/></g>
+      <g transform="translate(1730 462) scale(.38)"><use href="#eye"/></g>
+    </g>
+    <g class="a" data-a="pop@23:anyone+0.2/0.45">
+      <g transform="translate(1580 710) scale(.8)"><use href="#person" fill="#a39b8c"/></g>
+      <g transform="translate(1580 612) scale(.38)"><use href="#eye"/></g>
+    </g>
+  </svg>
+</section>
+
+<!-- 16. Fewer hacks, more trust -->
+<section class="scene" data-in="24">
+  <div class="c kicker" style="left:960px; top:226px" data-a="up@24-0.1/0.5">Money inside one app</div>
+  <div class="c num" style="left:960px; top:272px; color:#24643f" data-a="up@24-0.1/0.5">$1,250,000</div>
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(960 610) scale(.82)"><g class="a" data-a="pop@24-0.2/0.5"><use href="#safe"/></g></g>
+    <g transform="translate(1000 660)"><g class="a" data-a="pop@24:fewer-0.1/0.5" data-sfx="pop"><use href="#shield" transform="scale(.95)"/></g></g>
+    <g class="a" data-a="pop@24:trust-0.1/0.45">
+      <g transform="translate(470 600) scale(.85)"><use href="#person" fill="#8c8578"/></g>
+      <g transform="translate(510 512) scale(.5)"><use href="#okbadge"/></g>
+    </g>
+    <g class="a" data-a="pop@24:trust/0.45">
+      <g transform="translate(620 720) scale(.85)"><use href="#person" fill="#6f685c"/></g>
+      <g transform="translate(660 632) scale(.5)"><use href="#okbadge"/></g>
+    </g>
+    <g class="a" data-a="pop@24:trust+0.1/0.45">
+      <g transform="translate(1300 720) scale(.85)"><use href="#person" fill="#a39b8c"/></g>
+      <g transform="translate(1340 632) scale(.5)"><use href="#okbadge"/></g>
+    </g>
+    <g class="a" data-a="pop@24:trust+0.2/0.45">
+      <g transform="translate(1450 600) scale(.85)"><use href="#person" fill="#8c8578"/></g>
+      <g transform="translate(1490 512) scale(.5)"><use href="#okbadge"/></g>
+    </g>
+  </svg>
+</section>
+
+<!-- 17. A business that runs itself, in the open -->
+<section class="scene" data-in="25">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(500 330)"><g class="a" data-a="up@25:open-0.2/0.5">
+      <rect x="-150" y="-110" width="300" height="250" rx="18" fill="#fbf9f4" stroke="#1b1a17" stroke-width="6"/>
+      <text y="-56" text-anchor="middle" style="font-weight:600; font-size:38px">The books</text>
+      <g stroke="#d6d0c2" stroke-width="12" stroke-linecap="round"><path d="M-104 -6 H104"/><path d="M-104 34 H70"/><path d="M-104 74 H90"/></g>
+      <text y="124" text-anchor="middle" class="note" style="font-size:22px; fill:#b5301a">PUBLIC</text>
+    </g></g>
+    <g transform="translate(1420 250)"><g class="a" data-a="down@25:open/0.5"><g class="a" style="transform-origin:50% 0%" data-a="swing@25:open+0.4/2.6/3"><use href="#opensign"/></g></g></g>
+    <g transform="translate(960 400) scale(1.25)"><g class="a" data-a="pop@25-0.2/0.6" data-sfx="pop"><g class="a" data-a="bob@25+0.4/3/4">
+      <use href="#hat"/><use href="#glasses"/><g class="a" data-a="blink@25:itself/0.24"><use href="#eyes-open"/></g><use href="#bowtie"/>
+    </g></g></g>
+    <g transform="translate(960 760)"><g class="a" style="--r:-5deg" data-a="stamp@25:nobody-0.1/0.45" data-sfx="stamp">
+      <rect x="-340" y="-54" width="680" height="108" rx="12" fill="rgba(243,239,230,.86)" stroke="#b5301a" stroke-width="9"/>
+      <text y="23" text-anchor="middle" class="st" style="font-size:66px">RUN BY NOBODY</text>
+    </g></g>
+  </svg>
+</section>
+
+<!-- 18. End card -->
+<section class="scene" data-in="26">
+  <svg class="art" viewBox="0 0 1920 1080">
+    <g transform="translate(960 205) scale(.6)"><g class="a" data-a="pop@26-0.25/0.6"><use href="#hat"/><use href="#glasses"/><use href="#eyes-open"/><use href="#bowtie"/></g></g>
+  </svg>
+  <div class="c big" style="left:960px; top:318px; font-size:180px" data-a="up@26-0.15/0.6">Nobody</div>
+  <div class="c sub" style="left:960px; top:520px" data-a="up@26+0.2/0.6">Safety checks for NEAR apps, run by nobody.</div>
+  <div class="c small" style="left:960px; top:618px" data-a="up@26+0.6/0.6">Built at NEAR HACKATHON 2026 &middot; Tested &middot; Not live yet</div>
+</section>
+
+<div id="caption"></div>
+
+<script>
+(() => {
+  try {
+    const film = window.__film;
+    if (!film) throw new Error('open this page through film/explainer.mjs, which supplies the timing');
+    const { lines: LINES, starts: S, ends: E, words: W } = film;
+    const CHAPTERS = [[0, 'The problem'], [4, 'The idea'], [9, 'How it works'], [18, 'How it runs itself'], [24, 'Why it matters']];
+
+    function at(spec) {
+      const m = /^(\d+)(?:(e)|:([a-z0-9']+)(?:#(\d+))?)?([+-]\d*\.?\d+)?$/i.exec(String(spec).trim());
+      if (!m) throw new Error(`bad time "${spec}"`);
+      const line = Number(m[1]);
+      if (!(line in S)) throw new Error(`no line ${line} in "${spec}"`);
+      let t = m[2] ? E[line] : S[line];
+      if (m[3]) {
+        const want = m[3].toLowerCase();
+        const hits = W[line].filter((word) => word.w === want);
+        const nth = Number(m[4] || 1);
+        if (hits.length < nth) throw new Error(`line ${line} has no word "${want}"`);
+        t = S[line] + hits[nth - 1].t;
+      }
+      return t + (m[5] ? parseFloat(m[5]) * 1000 : 0);
+    }
+
+    const FILL = { out: 'forwards', dim: 'forwards', toRed: 'forwards', open: 'forwards',
+      shake: 'none', press: 'none', wiggle: 'none', bob: 'none', zzz: 'none', blink: 'none', swing: 'none' };
+    const EASE = { drop: 'cubic-bezier(.55,0,1,.45)', stamp: 'cubic-bezier(.3,0,.5,1)', burst: 'cubic-bezier(.2,.6,.4,1)', shiftX: 'cubic-bezier(.6,0,.3,1)',
+      sweep: 'ease-in-out', draw: 'ease-in-out', wiggle: 'ease-in-out', bob: 'ease-in-out', swing: 'ease-in-out',
+      blink: 'ease-in-out', press: 'ease-in-out', shake: 'linear', zzz: 'linear' };
+    const segments = (spec) => spec.split(';').map((part) => part.trim()).filter(Boolean).map((part) => {
+      const [name, rest] = part.split('@');
+      const [when, dur = '0.6', count = '1'] = rest.split('/');
+      return { name: name.trim(), t: at(when), dur: parseFloat(dur) * 1000, count };
+    });
+    const css = ({ name, t, dur, count }) =>
+      `${name} ${dur}ms ${EASE[name] ?? 'cubic-bezier(.2,.8,.3,1)'} ${Math.round(t)}ms ${count === 'inf' ? 'infinite' : count} ${FILL[name] ?? 'both'}`;
+
+    // Scenes fade in just before their first line, and out just before the next scene.
+    const scenes = [...document.querySelectorAll('.scene')];
+    const firsts = scenes.map((scene) => Number(scene.dataset.in));
+    if (JSON.stringify(firsts) !== JSON.stringify(film.scenes)) throw new Error(`the page's scenes ${firsts} are not the script's ${film.scenes}`);
+    if (JSON.stringify(CHAPTERS.map(([line]) => line)) !== JSON.stringify(film.chapters.slice(0, -1))) throw new Error('the chapters differ from the script');
+    // The first picture is already up on frame one, so the video never opens on blank paper.
+    const enter = (line) => (line === 0 ? -1000 : S[line] - 380);
+    const leave = (line) => S[line] - 420;
+    scenes.forEach((scene, index) => {
+      const parts = [`sceneIn 450ms ease ${enter(firsts[index])}ms 1 both`];
+      if (index < scenes.length - 1) parts.push(`sceneOut 330ms ease ${leave(firsts[index + 1])}ms 1 forwards`);
+      scene.style.animation = parts.join(', ');
+    });
+    const holder = document.getElementById('chapters');
+    CHAPTERS.forEach(([line, title], index) => {
+      const next = CHAPTERS[index + 1]?.[0] ?? film.chapters[film.chapters.length - 1];
+      const tag = document.createElement('div');
+      tag.className = 'chapter';
+      tag.textContent = title;
+      tag.style.animation = `sceneIn 450ms ease ${enter(line)}ms 1 both, sceneOut 330ms ease ${leave(next)}ms 1 forwards`;
+      holder.append(tag);
+    });
+
+    for (const element of document.querySelectorAll('[data-a]')) element.style.animation = segments(element.dataset.a).map(css).join(', ');
+
+    // Curved moves, as many keyframes along a quadratic curve.
+    for (const element of document.querySelectorAll('[data-arc]')) {
+      let from = [0, 0];
+      JSON.parse(element.dataset.arc).forEach((seg, index) => {
+        const start = seg.from ?? from;
+        const via = seg.via ?? [(start[0] + seg.to[0]) / 2, (start[1] + seg.to[1]) / 2];
+        const [s0, s1] = seg.scale ?? [1, 1];
+        const frames = [];
+        for (let k = 0; k <= 30; k += 1) {
+          const u = k / 30;
+          const x = (1 - u) ** 2 * start[0] + 2 * (1 - u) * u * via[0] + u * u * seg.to[0];
+          const y = (1 - u) ** 2 * start[1] + 2 * (1 - u) * u * via[1] + u * u * seg.to[1];
+          const frame = { offset: u, transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${(s0 + (s1 - s0) * u).toFixed(3)})` };
+          if (seg.fade) frame.opacity = u < 0.7 ? 1 : 1 - (u - 0.7) / 0.3;
+          frames.push(frame);
+        }
+        element.animate(frames, { delay: at(seg.at), duration: seg.dur * 1000, fill: index === 0 ? 'both' : 'forwards', easing: 'ease-in-out' });
+        from = seg.to;
+      });
+    }
+
+    const counters = [...document.querySelectorAll('[data-count]')].map((element) => ({
+      element,
+      parts: element.dataset.count.split(';').map((part) => {
+        const [range, rest] = part.trim().split('@');
+        const [from, to] = range.split(',').map(Number);
+        const [when, dur] = rest.split('/');
+        return { from, to, t: at(when), dur: parseFloat(dur) * 1000 };
+      }),
+    }));
+
+    // Sound cues for the music track: stamps thump, coins ring, pops click.
+    const cues = [];
+    for (const element of document.querySelectorAll('[data-sfx]')) {
+      const kind = element.dataset.sfx;
+      let ms;
+      if (element.dataset.sfxAt) ms = at(element.dataset.sfxAt);
+      else if (element.dataset.arc) {
+        const list = JSON.parse(element.dataset.arc);
+        const last = list[list.length - 1];
+        ms = at(last.at) + last.dur * 1000;
+      } else {
+        const first = segments(element.dataset.a)[0];
+        ms = first.t + first.dur * (kind === 'stamp' ? 0.45 : 0.15);
+      }
+      cues.push({ kind, ms: Math.round(ms) });
+    }
+    window.__cues = cues.sort((a, b) => a.ms - b.ms);
+
+    const caption = document.getElementById('caption');
+    const money = (value) => '$' + Math.round(value).toLocaleString('en-US');
+    let animations = [];
+    window.__seek = (ms) => {
+      for (const animation of animations) animation.currentTime = ms;
+      for (const counter of counters) {
+        let value = counter.parts[0].from;
+        for (const part of counter.parts) {
+          if (ms < part.t) continue;
+          const p = Math.min(1, (ms - part.t) / part.dur);
+          value = part.from + (part.to - part.from) * (1 - (1 - p) ** 3);
+        }
+        counter.element.textContent = money(value);
+      }
+      let line = -1;
+      for (let index = 0; index < S.length; index += 1) if (ms >= S[index] - 120) line = index;
+      const last = S.length - 1;
+      const text = line < 0 || (line === last && ms > E[last] + 900) ? '' : LINES[line];
+      if (caption.textContent !== text) caption.textContent = text;
+      void document.body.offsetHeight;
+    };
+
+    document.fonts.ready.then(async () => {
+      for (const image of document.querySelectorAll('img')) await image.decode();
+      void document.body.offsetHeight;
+      animations = document.getAnimations();
+      animations.forEach((animation) => animation.pause());
+      window.__seek(0);
+      window.__ready = true;
+    }).catch((error) => { window.__error = String(error && error.message || error); });
+  } catch (error) {
+    window.__error = String(error && error.message || error);
+  }
+})();
+</script>
+</body>
+</html>

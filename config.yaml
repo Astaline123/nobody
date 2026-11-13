@@ -1,0 +1,37 @@
+# The rules a human sets. Everything else, the company does by itself.
+#
+# Apply them with `set_rules` on the contract, which enforces every line. Neither the AI nor the
+# enclave can change them, and the owner still cannot move money: the split caps are in the code.
+
+# Flip this to stop all new orders. Orders already running still finish or refund.
+kill_switch: false
+
+# The AI may set any price inside this range, and no price outside it.
+min_price_usd: 1.00
+max_price_usd: 5.00
+
+# Maximum inference spend per day. The shop closes before this is passed.
+max_ai_spend_usd_per_day: 5.00
+# What one run is assumed to cost until the enclave reports the real figure.
+ai_reserve_per_run_usd: 0.05
+
+# Who shares each sale. What is left stays in the treasury, which always keeps at least 10%.
+revenue_split:
+  contributors_percent: 20
+  referrer_percent: 10
+  stake_percent: 10
+
+# The AI reviews the price every this many sales. Zero turns that off.
+price_review_every_sales: 5
+
+# NEAR attached to each run. OutLayer's limit for this run size is 0.013 and it refunds the rest.
+compute_deposit_near: 0.03
+# New orders stop when free NEAR would fall below this.
+near_floor: 0.5
+
+# Buying inference. NEAR AI sells Cloud credits for staked NEAR: the stake's yield becomes
+# credits, and the NEAR stays the company's. The company stakes NEAR it does not need for
+# compute, never past this cap. Zero stops buying.
+ai_stake_cap_near: 2
+# NEAR always kept liquid to pay for compute, about 140 runs. Only NEAR above this is staked.
+keep_liquid_near: 1

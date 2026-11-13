@@ -1,0 +1,19 @@
+{
+  "name": "nobody",
+  "version": "0.1.0",
+  "description": "An AI company with no server, no staff and no keys. Built at NEAR HACKATHON.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "demo": "node sim/demo.mjs",
+    "shop": "node sim/server.mjs",
+    "review": "node sim/review.mjs",
+    "e2e": "node sim/e2e.mjs",
+    "testnet": "node scripts/testnet.mjs",
+    "demo:testnet": "node scripts/testnet.mjs demo",
+    "build": "node scripts/build.mjs"
+  }
+}

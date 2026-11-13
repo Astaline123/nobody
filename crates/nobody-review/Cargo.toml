@@ -1,0 +1,13 @@
+[package]
+name = "nobody-review"
+description = "What Nobody sells: a private security review of a NEAR contract, run against NEAR's audit checklist. Pure logic with no network, so it runs and tests anywhere."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nobody-core = { path = "../nobody-core" }
+serde_json = "1"
+sha2 = "0.10"
+miniz_oxide = "0.8"
+crypto_box = { version = "0.9", default-features = false, features = ["salsa20", "alloc"] }
